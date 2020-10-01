@@ -4,25 +4,49 @@ from utils import load_hotspots
 import csv
 
 class Interactive:
+    """
+    Uses LUT of two separate dumps of witness lists per @evan's code to get addresses only witness list:
+    CSV = maps:fold(fun(K, V, A) -> W = blockchain_ledger_gateway_v2:witnesses(V), [maps:fold(fun(K2, _, A2) ->  [io_lib:format("~s, ~s~n", [libp2p_crypto:bin_to_b58(K), libp2p_crypto:bin_to_b58(K2)]) | A2] end, [], W)| A] end, [], blockchain_ledger_v1:active_gateways(blockchain:ledger(blockchain_worker:blockchain()))), file:write_file("/var/witnesses.csv", CSV).
+
+    File Format will be:
+    11pu4B7uGTiXATZunczzYk4iefpkt4cJf7zm9q4ZvTxr63WvmUP, 112mgSjGUZCBit2sv3Vv2FuLwaTVnMJHg3XN8H1xjAqdyc5t9hzZ
+    11pu4B7uGTiXATZunczzYk4iefpkt4cJf7zm9q4ZvTxr63WvmUP, 112mEVXHvkYTpHJcE5SGQo42bKDFdKh2fiTexjuMLnmr3XdREXi6
+    11pu4B7uGTiXATZunczzYk4iefpkt4cJf7zm9q4ZvTxr63WvmUP, 112kYX5HpnuoD7WPjDRYPV2VCmZvwtSEvCuyi2XZLoeqsVvhiF5h
+    11pu4B7uGTiXATZunczzYk4iefpkt4cJf7zm9q4ZvTxr63WvmUP, 112euXBKmLzUAfyi7FaYRxRpcH5RmfPKprV3qEyHCTt8nqwyVFYo
+    11pu4B7uGTiXATZunczzYk4iefpkt4cJf7zm9q4ZvTxr63WvmUP, 112eNuzPYSeeo3tqNDidr2gPysz7QtLkePkY5Yn1V7ddNPUDN6p5
+    ...
+    """
     def __init__(self):
         hotspots = load_hotspots()
         self.h_by_addr = dict()
         for h in hotspots:
             self.h_by_addr[h['address']] = h
         interactives = set([])
-        with open('witnesses.csv', newline='') as csvfile:
-            reader = csv.reader(csvfile, delimiter=',', quotechar='"')
-            count = 0
-            results = []
-            for row in reader:
-                interactives.update(row)
-        with open('witnesses2.csv', newline='') as csvfile:
-            reader = csv.reader(csvfile, delimiter=',', quotechar='"')
-            count = 0
-            results = []
-            for row in reader:
-                interactives.update(row)
-
+        found_witness = False
+        try:
+            with open('witnesses.csv', newline='') as csvfile:
+                reader = csv.reader(csvfile, delimiter=',', quotechar='"')
+                count = 0
+                results = []
+                for row in reader:
+                    interactives.update(row)
+                found_witness = True
+        except FileNotFoundError as e:
+            pass
+        try:
+            with open('witnesses2.csv', newline='') as csvfile:
+                reader = csv.reader(csvfile, delimiter=',', quotechar='"')
+                count = 0
+                results = []
+                for row in reader:
+                    interactives.update(row)
+                found_witness = True
+        except FileNotFoundError as e:
+            pass
+        if not found_witness:
+            print("WARNING no 'witnesses.csv' found with addresses of interactive hotsots, will assume all hotspots interactive")
+            print(f"\tthis will run to understand the algorithm but will give very wrong results")
+            interactives = [h['address'] for h in hotspots]
         self.interactives = interactives
 
     def is_interactive(self, hotspot_address):
@@ -68,8 +92,7 @@ class RewardScale:
             self.chain_vars['res_vars'][res_key]['density_tgt'] * max(1, (at_tgt_count - self.chain_vars['res_vars'][res_key]['N'] + 1))
         )
         val = min(clip, hex_densities[hex])
-        if val != hex_densities[hex]:
-            print(f'clipped {hex} at res {res} from {hex_densities[hex]} to {val}')
+
         return val
 
     def get_hex_densities(self):
@@ -121,11 +144,11 @@ class RewardScale:
         for whex in whitelist_hexs:
             whitelist_density += hex_densities.get(whex, 0)
         for h in self.hotspots:
-            print(f"analyzing {h['name']}")
-            # initialize scale by uniformly selecting among hotsots in target res parent
+
+            # initialize scale initially set to clipped/unclipped count for target res
             hspot_hex = h3.h3_to_parent(h['location'], self.chain_vars['R'])
             scale = hex_densities[hspot_hex] / target_hex_unclipped[h3.h3_to_parent(h['location'], self.chain_vars['R'])]
-            print(f"\t initial scale {scale:.5f}")
+
             for parent_res in range(self.chain_vars['R']-1, -1, -1):
                 if hspot_hex in whitelist_hexs:
                     break
@@ -134,15 +157,14 @@ class RewardScale:
 
                 for child in h3.h3_to_children(parent, parent_res + 1):
                     children_sum += hex_densities.get(child, 0)
-
+                # multiply scale by ratio of clipped values
                 scale *= hex_densities[parent]/children_sum
-                print(f"\tat res {parent_res+1} scale at: {scale:.5f}")
                 hspot_hex = parent
 
+            # if we stopped an arent at a whitelisted hex, this hex gets 0 rewards
             if hspot_hex not in whitelist_hexs:
                 scale = 0
-            normalized_scale = scale * len(self.hotspots)
-            print(f"\tnormalized scale: {normalized_scale:.5f}")
+
             reward_scales[h['address']] = scale
 
         if normalize:
@@ -158,14 +180,9 @@ class RewardScale:
 
 
 
-
-
-
-
 def main():
     with open('chain_vars.json', 'r') as fd:
         chain_vars = json.load(fd)
-    print(chain_vars)
 
     # for now set all level 0 hex with a hotspot as whitelist
     whitelist_hexs = set()
@@ -187,8 +204,7 @@ def main():
         hex_writer.writerow(['address', 'reward_scale'])
         for h in hotspot_scales:
             hex_writer.writerow([h, hotspot_scales[h]])
-    print(f"total scale at {total_scale}, with {len(hotspot_scales)} hotspots")
-    print(f"average scale = {total_scale/len(hotspot_scales):.5f}")
+
 
 
 if __name__ == '__main__':

@@ -1,0 +1,14 @@
+{
+  "R": 8,
+  "res_vars": {
+    "0": {"N":  2, "density_tgt": 10000, "density_max": 10000},
+    "1": {"N":  2, "density_tgt": 10000, "density_max": 10000},
+    "2": {"N":  2, "density_tgt": 10000, "density_max": 10000},
+    "3": {"N":  2, "density_tgt": 10000, "density_max": 10000},
+    "4": {"N":  2, "density_tgt": 250, "density_max": 800},
+    "5": {"N":  2, "density_tgt": 100, "density_max": 400},
+    "6": {"N":  2, "density_tgt": 35, "density_max": 150},
+    "7": {"N":  2, "density_tgt": 5, "density_max": 20},
+    "8": {"N":  2, "density_tgt": 1, "density_max": 4}
+  }
+}
