@@ -108,7 +108,8 @@ class RewardScale:
         # clip targets so we have valid children in hex densities to begin ascending through list
         for h in target_hex_unclipped:
             hex_densities[h] = self.__clip_hex__(h, target_hex_unclipped)
-
+        print(f"{len(self.hotspots)} interactive hotspots")
+        print(f"found {len(hex_densities):4d} occupied hexs at resolution {self.chain_vars['R']}")
         # now we initialized hex_densities with appropriately clipped target hexs go from resolution R-1 to 0
         occupied_children = set(list(hex_densities.keys()))
         for res in range(self.chain_vars['R']-1, -1, -1):
@@ -177,7 +178,6 @@ class RewardScale:
                 reward_scales[k] /= scale_avg
 
         return reward_scales
-
 
 
 def main():

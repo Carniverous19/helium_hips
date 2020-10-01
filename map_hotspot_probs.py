@@ -230,7 +230,7 @@ def main():
 
     USA_bbox = [48.922499,-124.872527, 24.806681, -66.896522]
 
-    hprobs = get_hotspot_scales(R=8, N=2, tgt=1, max_density=4, fn="hotspot_RewardScale_R8_orig.csv")
+    hprobs = get_hotspot_scales(R=8, N=2, tgt=1, max_density=4, fn="hotspot_RewardScale_R8.csv")
     # plot_hotspot_probs(hprobs, SF[0], SF[1], outputfile='para1_geohip_SF.html')
     # plot_hotspot_probs(hprobs, Modesto[0], Modesto[1], outputfile='para1_geohip_Modesto.html')
     # plot_hotspot_probs(hprobs, NYC[0], NYC[1], outputfile='para1_geohip_NYC.html')
