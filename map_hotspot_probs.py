@@ -166,8 +166,8 @@ def map_hotspot_scale(hscale, lat=None, lng=None, R=8, geo_range=1.0, outputfile
 
     for idx in idc[::-1]:
         hp = hscale[idx]
-        hlat = h_by_addr[hp['addr']]['lat'] + (random.random()-0.5)*.0000
-        hlng = h_by_addr[hp['addr']]['lng'] + (random.random()-0.5)*.0000
+        hlat = h_by_addr[hp['addr']]['lat'] #+ (random.random()-0.5)*.0000
+        hlng = h_by_addr[hp['addr']]['lng'] #+ (random.random()-0.5)*.0000
 
         if not (bbox[2] < hlat < bbox[0] and bbox[1] < hlng < bbox[3]):
             continue
@@ -198,6 +198,7 @@ def map_hotspot_scale(hscale, lat=None, lng=None, R=8, geo_range=1.0, outputfile
         hex_points = list(h3.h3_to_geo_boundary(hex, False))
         hex_points.append(hex_points[0])
         folium.PolyLine(hex_points, weight=1.5, color='black', opacity=.45).add_to(my_map)
+        folium.Polygon(hex_points)
 
     print(f"drawing {len(hex_parent)} parent hexs")
     for hex in hex_parent:
@@ -230,7 +231,7 @@ def main():
 
     USA_bbox = [48.922499,-124.872527, 24.806681, -66.896522]
 
-    hprobs = get_hotspot_scales(R=8, N=2, tgt=1, max_density=4, fn="hotspot_RewardScale_R8.csv")
+    hprobs = get_hotspot_scales(R=9, N=2, tgt=1, max_density=4, fn="hotspot_RewardScale_R9.csv")
     # plot_hotspot_probs(hprobs, SF[0], SF[1], outputfile='para1_geohip_SF.html')
     # plot_hotspot_probs(hprobs, Modesto[0], Modesto[1], outputfile='para1_geohip_Modesto.html')
     # plot_hotspot_probs(hprobs, NYC[0], NYC[1], outputfile='para1_geohip_NYC.html')
@@ -239,7 +240,7 @@ def main():
     # plot_hotspot_probs(hprobs, LA[0], LA[1], outputfile='para1_geohip_LA.html')
     # plot_hotspot_probs(hprobs, Miami[0], Miami[1], outputfile='para1_geohip_Miami.html')
     # plot_hotspot_probs(hprobs, CapeMay[0], CapeMay[1], outputfile='para1_geohip_CapeMayNJ.html')
-    map_hotspot_scale(hprobs, bbox=USA_bbox, outputfile='para1_geohip_USA.html')
+    map_hotspot_scale(hprobs, bbox=USA_bbox, R=9, outputfile='para1_geohip_USA.html')
 
 if __name__ == '__main__':
     main()

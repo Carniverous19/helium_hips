@@ -1,6 +1,6 @@
 import h3
 import json
-from utils import load_hotspots
+from utils import load_hotspots, haversine_km
 import csv
 
 class Interactive:
@@ -29,7 +29,17 @@ class Interactive:
                 count = 0
                 results = []
                 for row in reader:
-                    interactives.update(row)
+
+                    dist = haversine_km(
+                        self.h_by_addr[row[0].strip()]['lat'],
+                        self.h_by_addr[row[0].strip()]['lng'],
+                        self.h_by_addr[row[1].strip()]['lat'],
+                        self.h_by_addr[row[1].strip()]['lng']
+                    )
+                    if dist < 0.3:
+                        continue
+                    interactives.add(row[0].strip())
+                    #interactives.add(row[1].strip())
                 found_witness = True
         except FileNotFoundError as e:
             pass
@@ -39,7 +49,16 @@ class Interactive:
                 count = 0
                 results = []
                 for row in reader:
-                    interactives.update(row)
+                    dist = haversine_km(
+                        self.h_by_addr[row[0].strip()]['lat'],
+                        self.h_by_addr[row[0].strip()]['lng'],
+                        self.h_by_addr[row[1].strip()]['lat'],
+                        self.h_by_addr[row[1].strip()]['lng']
+                    )
+                    if dist < 0.3:
+                        continue
+                    interactives.add(row[0].strip())
+                    #interactives.add(row[1].strip())
                 found_witness = True
         except FileNotFoundError as e:
             pass
@@ -72,7 +91,7 @@ class RewardScale:
 
 
 
-    def __clip_hex__(self, hex, hex_densities):
+    def __clip_hex__(self, hex, hex_densities, return_clip=False):
         """
 
         :param hex: hex string to evaluate
@@ -92,22 +111,26 @@ class RewardScale:
             self.chain_vars['res_vars'][res_key]['density_tgt'] * max(1, (at_tgt_count - self.chain_vars['res_vars'][res_key]['N'] + 1))
         )
         val = min(clip, hex_densities[hex])
-
+        if return_clip:
+            return val, clip
         return val
 
     def get_hex_densities(self):
 
         # first build densities at target resolution R
         target_hex_unclipped = dict()
+        all_info = dict()
         for h in self.hotspots:
             hex = h3.h3_to_parent(h['location'], self.chain_vars['R'])
             target_hex_unclipped.setdefault(hex, 0)
+            all_info.setdefault(hex, dict(unclipped=0, limit=-1))
             target_hex_unclipped[hex] += 1
+            all_info[hex]['unclipped'] += 1
 
         hex_densities = dict()
         # clip targets so we have valid children in hex densities to begin ascending through list
         for h in target_hex_unclipped:
-            hex_densities[h] = self.__clip_hex__(h, target_hex_unclipped)
+            hex_densities[h], all_info[h]['limit'] = self.__clip_hex__(h, target_hex_unclipped, return_clip=True)
         print(f"{len(self.hotspots)} interactive hotspots")
         print(f"found {len(hex_densities):4d} occupied hexs at resolution {self.chain_vars['R']}")
         # now we initialized hex_densities with appropriately clipped target hexs go from resolution R-1 to 0
@@ -120,16 +143,18 @@ class RewardScale:
                 hex = h3.h3_to_parent(child_hex, res)
                 occupied_hexs.add(hex)
                 hex_densities.setdefault(hex, 0)
+                all_info.setdefault(hex, dict(unclipped=0, limit=-1))
                 hex_densities[hex] += hex_densities[child_hex]
+                all_info[hex]['unclipped'] += hex_densities[child_hex]
 
             print(f"found {len(occupied_hexs):4d} occupied hexs at resolution {res}")
             # clip hex's at this res as appropriate
             for hex in occupied_hexs:
-                hex_densities[hex] = self.__clip_hex__(hex, hex_densities)
+                hex_densities[hex], all_info[hex]['limit'] = self.__clip_hex__(hex, hex_densities, return_clip=True)
 
             occupied_children = occupied_hexs
 
-        return hex_densities, target_hex_unclipped
+        return hex_densities, all_info
 
     def get_reward_scale(self, hex_densities, target_hex_unclipped, whitelist_hexs, normalize=False):
         """
@@ -191,8 +216,22 @@ def main():
             whitelist_hexs.add(h3.h3_to_parent(h['location'], 0))
 
     RS = RewardScale(chain_vars)
-    hex_densities, target_hex_unclipped = RS.get_hex_densities()
+    hex_densities, all_hex_info = RS.get_hex_densities()
+    with open(f'hexDensities_RewardScale_R{chain_vars["R"]}.csv', 'w', newline='') as csvfile:
+        hex_writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        hex_writer.writerow(['hex', 'resolution', 'limit', 'clipped', 'child_sum', 'ratio'])
+        for h in hex_densities:
+            res = h3.h3_get_resolution(h)
+            sum = all_hex_info[h]['unclipped']
 
+            ratio = 0
+            if sum:
+                ratio = hex_densities[h]/sum
+            hex_writer.writerow([h, res, all_hex_info[h]['limit'], hex_densities[h], sum, ratio])
+
+    target_hex_unclipped = dict()
+    for h in all_hex_info:
+        target_hex_unclipped[h] = all_hex_info[h]['unclipped']
     hotspot_scales = RS.get_reward_scale(hex_densities, target_hex_unclipped, whitelist_hexs=whitelist_hexs, normalize=True)
     total_scale = 0
     for v in hotspot_scales.values():
